@@ -176,49 +176,47 @@ class Browser:
 
     def scrap_list_of_items(self, class_name, list_for_search):
         result_list = []
-        for b in list_for_search:
+        for item_id in list_for_search:
             parent_element = self.driver.find_element_by_class_name(class_name)
-            for a in parent_element.find_elements_by_id(b):
-                # Scrap by:
-                ## Orders
-                if (self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span').text != "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span').text == "—"):
-
-
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[1]/a').text
-                    cost = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span[1]').text
-                    weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span[2]').text
-                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text
+            if parent_element.find_elements_by_id(item_id):
+                # Search by
+                ##Orders
+                if (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text != "—") & (
+                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text == "—"):
+                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
+                    cost = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span[1]').text
+                    weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span[2]').text
+                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
                     status = "order_request"
                     item = ItemObject(name, cost, weight, status)
-                    if (average_p != "—"):
+                    if average_p != "—":
                         total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
                         average_price = s2 = average_p.split(' ')[0] + (average_p.split(' '))[1]
                         item.average_price = average_price
                         total_weight_str = s2 = total_weight.split(' ')[0] + (total_weight.split(' '))[1]
                         item.total_weight = total_weight_str
-                    result_list.append(item)
-                    ## Demands
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span').text != "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span').text == "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[1]/a').text
-                    cost = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span[1]').text
-                    weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span[2]').text
-                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text
+                        result_list.append(item)
+                ## Demands
+                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text != "—") & (
+                                self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text == "—"):
+                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
+                    cost = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span[1]').text
+                    weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span[2]').text
+                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
                     status = "demand_request"
                     item = ItemObject(name, cost, weight, status)
-                    if (average_p != "—"):
+                    if average_p != "—":
                         total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
                         average_price = average_p.split(' ')[0] + (average_p.split(' '))[1]
                         item.average_price = average_price
                         total_weight_str = total_weight.split(' ')[0] + (total_weight.split(' '))[1]
                         item.total_weight = total_weight_str
                     result_list.append(item)
-                    ## Deals
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span').text != "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span').text != "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[1]/a').text
-                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]').text
+                ## Deals
+                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text != "—") & (
+                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text != "—"):
+                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
+                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]').text
                     cost = 0
                     weight = 0
                     status = "deal"
@@ -227,20 +225,21 @@ class Browser:
                     item.average_price = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text
                     item.total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
                     result_list.append(item)
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[3]/div/span').text == "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[2]/div/span').text == "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text != "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[1]/a').text
-                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]').text
+                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text == "—") & (
+                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text == "—") & (
+                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text != "—"):
+                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
+                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]').text
                     weight = 0
                     cost = 0
                     status = "deal"
                     item = ItemObject(name, cost, weight, status)
                     item.total_price = total_price
-                    item.average_price = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text
-                    item.total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
+                    item.average_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
+                    item.total_weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]/span').text
                     result_list.append(item)
         return result_list
+
 
     def result_analyzer(self, result_list, list_of_items, message_builder):
         list_of_changes = []
@@ -264,6 +263,7 @@ class Browser:
                 list_of_items.main_list.append(new_item)
         return list_of_changes, list_of_items
 
+
     def quit(self):
         self.driver.quit()
 
@@ -274,7 +274,9 @@ class ScrapperController():
         self.checkbox_xpath = '//*[@id="fname"]'
         self.title_name = 'конденсат газовый'
         self.url_titles_location = "http://spimex.com/markets/oil_products/instrument_list/"
-        self.url_of_parsing = "http://spimex.com/markets/oil_products/trades/"
+        #self.url_of_parsing = "http://spimex.com/markets/oil_products/trades/"
+        self.url_of_parsing="file:///C:/Users/PS/Desktop/test/4%20%D0%A5%D0%BE%D0%B4%20%D1%82%D0%BE%D1%80%D0%B3%D0%BE%D0%B2%20%D0%B2%20%D0%A1%D0%B5%D0%BA%D1%86%D0%B8%D0%B8%20%C2%AB%D0%9D%D0%B5%D1%84%D1%82%D0%B5%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D1%8B%C2%BB.html"
+
         self.js_class_name_tabel = "trade-time"
         self.titles_class_name = "black"
         self.class_name_for_active_form = "trade-time"
