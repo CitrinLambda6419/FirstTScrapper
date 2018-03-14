@@ -5,30 +5,33 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 import TelegramBot
 import re
+import Logger
+import sys
 
 
 class ItemObject:
-    def __init__(self, name, price, weight, status):
-        self.name = name
-        self.price = price
-        self.weight = weight
+    def __init__(self):
+        self.name = ""
+        self.offer_price = 0
+        self.offer_weight = 0
+        self.demand_price = 0
+        self.demand_weight = 0
         self.demand_request = False
         self.order_request = False
         self.deal = False
         self.average_price = 0
         self.total_weight = 0
         self.total_price = 0
-        if status == "demand_request":
-            self.demand_request = True
-        if status == "order_request":
-            self.order_request = True
-        if status == "deal":
-            self.deal = True
 
     def equals(self, object):
-        if self.name == object.name:
-            if self.price == object.price:
-                return self.weight == object.weight
+        if self.offer_price == object.offer_price:
+            if self.offer_weight == object.offer_weight:
+                if self.name == object.name:
+                    if self.demand_price == object.demand_price:
+                        if self.demand_weight == object.demand_weight:
+                            if self.average_price == object.average_price:
+                                if self.total_weight == object.total_weight:
+                                    return self.total_price == object.total_price
 
     def compare_deal(self, object):
         if self.deal == object.deal:
@@ -37,9 +40,9 @@ class ItemObject:
             return False
 
     def is_differente(self, object):
-        if (self.demand_request == True) == (self.demand_request == object.order_request):
+        if (self.demand_request == True) == (self.demand_request != object.order_request):
             return True
-        elif (self.order_request == True) == (self.order_request == object.demand_request):
+        elif (self.order_request == True) == (self.order_request != object.demand_request):
             return True
         else:
             return False
@@ -71,15 +74,21 @@ class OutputMessageBuilder:
     def build_message_by_status(self, status, item):
         if status == "add":
             if item.demand_request:
-                return f"На бирже появился СПРОС, {item.name}, в объеме {item.weight}, по цене {item.price} р."
+                if item.order_request:
+                    return f"На бирже появился СПРОС, {item.name}, в объеме {item.demand_weight}, по цене {item.demand_price} р." \
+                           f"\nНа бирже появилоcь ПРЕДЛОЖЕНИЕ, {item.name}, в объеме {item.offer_weight}, по цене {item.offer_price} р."
+                else:
+                    return f"На бирже появился СПРОС, {item.name}, в объеме {item.demand_weight}, по цене {item.demand_price} р."
             elif item.order_request:
-                return f"На бирже появилоcь ПРЕДЛОЖЕНИЕ, {item.name}, в объеме {item.weight}, по цене {item.price} р."
-            else:
+                return f"На бирже появилоcь ПРЕДЛОЖЕНИЕ, {item.name}, в объеме {item.offer_weight}, по цене {item.offer_price} р."
+            elif item.deal:
                 return f"На бирже ПРОИЗОШЛА!!! СДЕЛКА!!!, {item.name}, по цене {item.total_price}"
+            else:
+                return f"Incorrect status item.order_request {item.order_request}, item.order_request = {item.order_request}, name = {item.name}"
         elif status == "deal":
             return f"На бирже ПРОИЗОШЛА!!! СДЕЛКА!!!, {item.name}, по цене {item.total_price}"
         else:
-            return f"Status have incorrect answer: '{status}'"
+            return f"Status incorrect. Status: '{status}'"
 
 
 class ListOfItemObjects:
@@ -106,11 +115,7 @@ class ListOfItemObjects:
         if target_item.status_is_equal(compared_item):
             return "none", target_item, compared_item
         elif target_item.is_differente(compared_item):
-            target_item.demand_request = False
-            target_item.order_request = False
-            target_item.deal = True
-            compared_item.deal = True
-            return "deal", target_item, compared_item
+            return "add", target_item, compared_item
         elif target_item.compare_deal(compared_item):
             target_item.deal = True
             compared_item.deal = True
@@ -149,7 +154,8 @@ class ListOfItemObjects:
 
 
 class Browser:
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
         self.driver = webdriver.Chrome()
         self.delay = 3  # seconds
 
@@ -166,80 +172,86 @@ class Browser:
         try:
             WebDriverWait(self.driver, self.delay).until(EC.presence_of_element_located((By.ID, id)))
         except TimeoutException:
-            pass;  ##current version do not support logger
+            self.logger.write_error(sys.exc_info()[0])
 
     def get_str_list_by_class_name(self, class_name):
         elements_list = []
         for elm in self.driver.find_elements_by_class_name(class_name):
+            self.logger.write_info(f"Finded item id: {elm.text}")
             elements_list.append(elm.text)
         return elements_list
+
+    def separator(self, object):
+        if str(object.text) != "—":
+            if str(object.text) != "":
+                list_of_strings = []
+                try:
+                    list_of_strings = object.text.split("\n")
+                except:
+                    self.logger.write_error(
+                        f"Error: {sys.exc_info()[0]} \n Object text: {object.text} \n {sys.exc_info()[1]}{sys.exc_info()[2]}\n{sys.exc_info()[3]}")
+                if (len(list_of_strings) == 2):
+                    if list_of_strings[1] != "—":
+                        return list_of_strings[0], list_of_strings[1]
+                    else:
+                        return list_of_strings[0], 0
+                else:
+                    return 0, 0
+        else:
+            return 0, 0
 
     def scrap_list_of_items(self, class_name, list_for_search):
         result_list = []
         for item_id in list_for_search:
             parent_element = self.driver.find_element_by_class_name(class_name)
+            item = ItemObject()
+
             if parent_element.find_elements_by_id(item_id):
-                # Search by
-                ##Orders
-                if (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text != "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text == "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
-                    cost = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span[1]').text
-                    weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span[2]').text
-                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
-                    status = "order_request"
-                    item = ItemObject(name, cost, weight, status)
-                    if average_p != "—":
-                        total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
-                        average_price = s2 = average_p.split(' ')[0] + (average_p.split(' '))[1]
-                        item.average_price = average_price
-                        total_weight_str = s2 = total_weight.split(' ')[0] + (total_weight.split(' '))[1]
-                        item.total_weight = total_weight_str
-                        result_list.append(item)
-                ## Demands
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text != "—") & (
-                                self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text == "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
-                    cost = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span[1]').text
-                    weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span[2]').text
-                    average_p = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
-                    status = "demand_request"
-                    item = ItemObject(name, cost, weight, status)
-                    if average_p != "—":
-                        total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
-                        average_price = average_p.split(' ')[0] + (average_p.split(' '))[1]
-                        item.average_price = average_price
-                        total_weight_str = total_weight.split(' ')[0] + (total_weight.split(' '))[1]
-                        item.total_weight = total_weight_str
-                    result_list.append(item)
-                ## Deals
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text != "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text != "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
-                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]').text
-                    cost = 0
-                    weight = 0
-                    status = "deal"
-                    item = ItemObject(name, cost, weight, status)
-                    item.total_price = total_price
-                    item.average_price = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[4]').text
-                    item.total_weight = self.driver.find_element_by_xpath(f'//*[@id="{b}"]/td[5]/span').text
-                    result_list.append(item)
-                elif (self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[3]/div/span').text == "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[2]/div/span').text == "—") & (
-                            self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text != "—"):
-                    name = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[1]/a').text
-                    total_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]').text
-                    weight = 0
-                    cost = 0
-                    status = "deal"
-                    item = ItemObject(name, cost, weight, status)
-                    item.total_price = total_price
-                    item.average_price = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[4]').text
-                    item.total_weight = self.driver.find_element_by_xpath(f'//*[@id="{item_id}"]/td[5]/span').text
+                for a in parent_element.find_elements_by_id(item_id):
+                    i = 0
+                    print(a.text)
+                    if a.find_elements_by_tag_name("td"):
+                        for b in a.find_elements_by_tag_name("td"):
+                            # Td container
+                            ##Name
+                            if i == 0:
+                                item.name = b.text
+                            ##Offer
+                            if i == 1:
+                                item.offer_price, item.offer_weight = self.separator(b)
+                            ##Demand
+                            if i == 3:
+                                item.demand_price, item.demand_weight = self.separator(b)
+                            ##Average price, exist only if item was sold
+                            if i == 4:
+                                item.average_price, item.percent_of_changes = self.separator(b)
+                            ##Result of deal in total price and weight
+                            if i == 5:
+                                item.total_price, item.total_weight = self.separator(b)
+                            i += 1
+
+                    if (item.offer_price != 0) & (item.demand_price == 0):
+                        item.order_request = True
+                        item.demand_request = False
+                        item.deal = False
+                        print("1")
+                    elif (item.offer_price == 0) & (item.demand_price != 0):
+                        item.demand_request = True
+                        item.order_request = False
+                        item.deal = False
+                        print("2")
+                    elif (item.average_price != 0):
+                        item.order_request = False
+                        item.demand_request = False
+                        item.deal = True
+
+                    else:
+                        item.demand_request = True
+                        item.order_request = True
+                        item.deal = False
+
                     result_list.append(item)
         return result_list
-
 
     def result_analyzer(self, result_list, list_of_items, message_builder):
         list_of_changes = []
@@ -255,14 +267,16 @@ class Browser:
                             list_of_changes.append(constructed_message)
                             list_of_items.main_list.remove(item)
                             list_of_items.main_list.append(new_item)
+                            self.logger.write_info(f"Added message: {new_item.name}")
+
         ## If main list do not have any item, construct list of changes and main list
         else:
             for new_item in result_list:
                 constructed_message = message_builder.build_message_by_status("add", new_item)
                 list_of_changes.append(constructed_message)
                 list_of_items.main_list.append(new_item)
+                self.logger.write_info(f"Added message: {new_item.name}")
         return list_of_changes, list_of_items
-
 
     def quit(self):
         self.driver.quit()
@@ -274,18 +288,17 @@ class ScrapperController():
         self.checkbox_xpath = '//*[@id="fname"]'
         self.title_name = 'конденсат газовый'
         self.url_titles_location = "http://spimex.com/markets/oil_products/instrument_list/"
-        #self.url_of_parsing = "http://spimex.com/markets/oil_products/trades/"
-        self.url_of_parsing="file:///C:/Users/PS/Desktop/test/4%20%D0%A5%D0%BE%D0%B4%20%D1%82%D0%BE%D1%80%D0%B3%D0%BE%D0%B2%20%D0%B2%20%D0%A1%D0%B5%D0%BA%D1%86%D0%B8%D0%B8%20%C2%AB%D0%9D%D0%B5%D1%84%D1%82%D0%B5%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D1%8B%C2%BB.html"
-
+        self.url_of_parsing = "http://spimex.com/markets/oil_products/trades/"
         self.js_class_name_tabel = "trade-time"
         self.titles_class_name = "black"
         self.class_name_for_active_form = "trade-time"
         self.browser = 0
         self.list_of_item_objects = ListOfItemObjects()
         self.list_for_search = []
+        self.logger = Logger.Logger('./var/tmp/myapp.log')
 
     def execute_prepare_sequence(self):
-        self.browser = Browser()
+        self.browser = Browser(self.logger)
         self.browser.get_page(self.url_titles_location)
         self.browser.input_text_in_form(self.checkbox_xpath, self.title_name)
         self.browser.active_checkbox(self.list_of_titles_by_xpath)
