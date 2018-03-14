@@ -57,6 +57,76 @@ class ItemObject:
             return False
 
 
+class ItemObjectBuilder:
+    def __init__(self):
+        pass;
+
+
+    def separator(self, object):
+        if str(object.text) != "—":
+            if str(object.text) != "":
+                list_of_strings = []
+                try:
+                    list_of_strings = object.text.split("\n")
+                except:
+                    self.logger.write_error(
+                        f"Error: {sys.exc_info()[0]} \n Object text: {object.text} \n {sys.exc_info()[1]}{sys.exc_info()[2]}\n{sys.exc_info()[3]}")
+                if (len(list_of_strings) == 2):
+                    if list_of_strings[1] != "—":
+                        return list_of_strings[0], list_of_strings[1]
+                    else:
+                        return list_of_strings[0], 0
+                else:
+                    return 0, 0
+        else:
+            return 0, 0
+
+
+    def build_from_td_web_element(self, object):
+        item = ItemObject()
+        index_of_container = 0
+        for td_container in object.find_elements_by_tag_name("td"):
+            # Td container
+            ##Name
+            if index_of_container == 0:
+                item.name = td_container.text
+            ##Offer
+            if index_of_container == 1:
+                item.offer_price, item.offer_weight = self.separator(td_container)
+            ##Demand
+            if index_of_container == 3:
+                item.demand_price, item.demand_weight = self.separator(td_container)
+            ##Average price, exist only if item was sold
+            if index_of_container == 4:
+                item.average_price, item.percent_of_changes = self.separator(td_container)
+            ##Result of deal in total price and weight
+            if index_of_container == 5:
+                item.total_price, item.total_weight = self.separator(td_container)
+            index_of_container += 1
+
+        return self.initial_item_status(item)
+
+    def initial_item_status(self, item):
+        if (item.offer_price != 0) & (item.demand_price == 0):
+            item.order_request = True
+            item.demand_request = False
+            item.deal = False
+        elif (item.offer_price == 0) & (item.demand_price != 0):
+            item.demand_request = True
+            item.order_request = False
+            item.deal = False
+        elif (item.average_price != 0):
+            item.order_request = False
+            item.demand_request = False
+            item.deal = True
+
+        else:
+            item.demand_request = True
+            item.order_request = True
+            item.deal = False
+        return item
+
+
 class OutputMessageBuilder:
     def __init__(self):
         pass;
@@ -152,7 +222,6 @@ class ListOfItemObjects:
         result = {"weight": total_weight, "average_price": average_price, "price": count_cost}
         return result
 
-
 class Browser:
     def __init__(self, logger):
         self.logger = logger
@@ -177,80 +246,23 @@ class Browser:
     def get_str_list_by_class_name(self, class_name):
         elements_list = []
         for elm in self.driver.find_elements_by_class_name(class_name):
-            self.logger.write_info(f"Finded item id: {elm.text}")
             elements_list.append(elm.text)
         return elements_list
 
-    def separator(self, object):
-        if str(object.text) != "—":
-            if str(object.text) != "":
-                list_of_strings = []
-                try:
-                    list_of_strings = object.text.split("\n")
-                except:
-                    self.logger.write_error(
-                        f"Error: {sys.exc_info()[0]} \n Object text: {object.text} \n {sys.exc_info()[1]}{sys.exc_info()[2]}\n{sys.exc_info()[3]}")
-                if (len(list_of_strings) == 2):
-                    if list_of_strings[1] != "—":
-                        return list_of_strings[0], list_of_strings[1]
-                    else:
-                        return list_of_strings[0], 0
-                else:
-                    return 0, 0
-        else:
-            return 0, 0
 
     def scrap_list_of_items(self, class_name, list_for_search):
         result_list = []
+        itemObjectBuilder = ItemObjectBuilder()
         for item_id in list_for_search:
             parent_element = self.driver.find_element_by_class_name(class_name)
-            item = ItemObject()
+           # item = ItemObject()
 
             if parent_element.find_elements_by_id(item_id):
-                for a in parent_element.find_elements_by_id(item_id):
+                for container in parent_element.find_elements_by_id(item_id):
                     i = 0
-                    print(a.text)
-                    if a.find_elements_by_tag_name("td"):
-                        for b in a.find_elements_by_tag_name("td"):
-                            # Td container
-                            ##Name
-                            if i == 0:
-                                item.name = b.text
-                            ##Offer
-                            if i == 1:
-                                item.offer_price, item.offer_weight = self.separator(b)
-                            ##Demand
-                            if i == 3:
-                                item.demand_price, item.demand_weight = self.separator(b)
-                            ##Average price, exist only if item was sold
-                            if i == 4:
-                                item.average_price, item.percent_of_changes = self.separator(b)
-                            ##Result of deal in total price and weight
-                            if i == 5:
-                                item.total_price, item.total_weight = self.separator(b)
-                            i += 1
-
-                    if (item.offer_price != 0) & (item.demand_price == 0):
-                        item.order_request = True
-                        item.demand_request = False
-                        item.deal = False
-                        print("1")
-                    elif (item.offer_price == 0) & (item.demand_price != 0):
-                        item.demand_request = True
-                        item.order_request = False
-                        item.deal = False
-                        print("2")
-                    elif (item.average_price != 0):
-                        item.order_request = False
-                        item.demand_request = False
-                        item.deal = True
-
-                    else:
-                        item.demand_request = True
-                        item.order_request = True
-                        item.deal = False
-
-                    result_list.append(item)
+                    if container.find_elements_by_tag_name("td"):
+                        item = itemObjectBuilder.build_from_td_web_element(container)
+                        result_list.append(item)
         return result_list
 
     def result_analyzer(self, result_list, list_of_items, message_builder):
